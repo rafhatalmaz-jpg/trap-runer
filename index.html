@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Хард лабиринт</title>
+
+<style>
+  body {
+    margin: 0;
+    background: #e6d87a;
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+  }
+</style>
+
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const size = 40;
+
+// карта
+const map = [
+[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+[1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,1],
+[1,0,1,1,1,0,1,0,1,0,1,0,1,1,1,0,1,0,1,1],
+[1,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1],
+[1,0,1,0,1,1,1,0,1,1,1,0,1,0,1,1,1,1,0,1],
+[1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,1,0,1],
+[1,1,1,0,1,0,1,1,1,0,1,1,1,0,1,0,1,1,0,1],
+[1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,1],
+[1,0,1,1,1,1,1,0,1,1,1,0,1,1,1,0,1,0,1,1],
+[1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1],
+[1,1,1,1,1,1,1,0,1,0,1,1,1,0,1,1,1,1,0,1],
+[1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+[1,0,1,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,1,1],
+[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1],
+[1,1,1,0,1,1,1,0,1,1,1,0,1,0,1,1,1,1,0,1],
+[1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+[1,0,1,1,1,0,1,1,1,0,1,1,1,1,1,0,1,1,0,1],
+[1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+[1,0,1,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,1],
+[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+
+let player = {x:1, y:1};
+let monster = {x:18, y:18};
+let exit = {x:18, y:1};
+
+// 💣 ЛОВУШКИ
+let traps = [
+  {x:3,y:1},{x:5,y:3},{x:10,y:7},{x:14,y:9},{x:7,y:15},{x:17,y:5}
+];
+
+// 🎵 МУЗЫКА (пищалка)
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playMusic() {
+  const notes = [440, 660, 550, 660]; // дуду ноты
+  let i = 0;
+
+  setInterval(() => {
+    const osc = audioCtx.createOscillator();
+    osc.frequency.value = notes[i % notes.length];
+    osc.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.2);
+    i++;
+  }, 250);
+}
+
+// запуск музыки после клика (иначе браузер блокирует)
+document.addEventListener("click", () => {
+  playMusic();
+}, {once:true});
+
+// движение игрока
+document.addEventListener("keydown", (e) => {
+  let nx = player.x;
+  let ny = player.y;
+
+  if (e.key === "ArrowUp") ny--;
+  if (e.key === "ArrowDown") ny++;
+  if (e.key === "ArrowLeft") nx--;
+  if (e.key === "ArrowRight") nx++;
+
+  if (map[ny][nx] === 0) {
+    player.x = nx;
+    player.y = ny;
+  }
+});
+
+// монстр умный
+function moveMonster() {
+  let bestMove = {x: monster.x, y: monster.y};
+  let bestDist = Infinity;
+
+  const dirs = [
+    {x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}
+  ];
+
+  for (let d of dirs) {
+    let nx = monster.x + d.x;
+    let ny = monster.y + d.y;
+
+    if (map[ny][nx] === 0) {
+      let dist = Math.abs(player.x - nx) + Math.abs(player.y - ny);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestMove = {x:nx, y:ny};
+      }
+    }
+  }
+
+  monster = bestMove;
+}
+
+// рисование
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // стены
+  for (let y=0; y<map.length; y++) {
+    for (let x=0; x<map[y].length; x++) {
+      if (map[y][x] === 1) {
+        ctx.fillStyle = "gray";
+        ctx.fillRect(x*size, y*size, size, size);
+      }
+    }
+  }
+
+  // 💣 ловушки
+  for (let t of traps) {
+    ctx.fillStyle = "orange";
+    ctx.fillRect(t.x*size+10, t.y*size+10, 20, 20);
+  }
+
+  // выход
+  ctx.fillStyle = "blue";
+  ctx.fillRect(exit.x*size, exit.y*size, size, size);
+
+  // игрок
+  ctx.fillStyle = "green";
+  ctx.beginPath();
+  ctx.arc(player.x*size+size/2, player.y*size+size/2, size/3, 0, Math.PI*2);
+  ctx.fill();
+
+  // монстр
+  ctx.fillStyle = "red";
+  ctx.beginPath();
+  ctx.arc(monster.x*size+size/2, monster.y*size+size/2, size/3, 0, Math.PI*2);
+  ctx.fill();
+
+  // 💀 ловушка
+  for (let t of traps) {
+    if (player.x === t.x && player.y === t.y) {
+      alert("💣 Ты попался в ловушку!");
+      location.reload();
+    }
+  }
+
+  // победа
+  if (player.x === exit.x && player.y === exit.y) {
+    alert("🎉 Победа!");
+    location.reload();
+  }// проигрыш
+  if (player.x === monster.x && player.y === monster.y) {
+    alert("💀 Монстр догнал!");
+    location.reload();
+  }
+}
+
+setInterval(() => {
+  moveMonster();
+  draw();
+}, 150);
+
+</script>
+
+</body>
